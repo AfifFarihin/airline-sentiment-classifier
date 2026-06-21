@@ -38,8 +38,9 @@ def main() -> None:
         nbf.v4.new_markdown_cell(
             "## Protocol\n\n"
             "Exact duplicate IDs and duplicate text are removed first. The latest 20% of "
-            "rows by timestamp form the untouched holdout. Candidate pipelines are selected "
-            "using five-fold macro F1 on the earlier period only."
+            "rows by timestamp form the final holdout. Candidate pipelines are selected "
+            "using five-fold expanding-window macro F1 on the earlier period only. Only the "
+            "selected model is evaluated on the holdout."
         ),
         nbf.v4.new_code_cell(
             "summary = json.loads((METRICS / 'evaluation_summary.json').read_text())\n"
@@ -51,8 +52,10 @@ def main() -> None:
         nbf.v4.new_code_cell(
             "report = pd.read_csv(METRICS / 'classification_report.csv', index_col=0)\n"
             "uncertainty = pd.read_csv(METRICS / 'holdout_uncertainty.csv')\n"
+            "author_slices = pd.read_csv(METRICS / 'generalization_slices.csv')\n"
             "display(report)\n"
             "display(uncertainty)\n"
+            "display(author_slices)\n"
             "display(Image(filename=str(FIGURES / 'confusion_matrix.png')))"
         ),
         nbf.v4.new_markdown_cell(
@@ -71,6 +74,8 @@ def main() -> None:
             "- A later-message holdout is stronger than a random split but does not prove "
             "generalization to current language, other platforms, or other industries.\n"
             "- Neutral sentiment remains materially harder to classify.\n"
+            "- Some later-period messages come from authors observed during training; "
+            "performance is therefore reported separately for unseen authors.\n"
             "- Public social-media labels can contain annotation and representation bias."
         ),
     ]

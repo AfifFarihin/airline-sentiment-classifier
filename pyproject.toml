@@ -16,6 +16,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+demo = [
+  "streamlit>=1.45,<2",
+]
 notebooks = [
   "ipykernel==7.1.0",
   "jupyterlab==4.6.0",

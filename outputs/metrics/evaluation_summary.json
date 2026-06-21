@@ -1,5 +1,5 @@
 {
-  "selection_rule": "Highest 5-fold training-period macro F1; model name breaks exact ties.",
+  "selection_rule": "Highest expanding-window training-period macro F1; model name breaks exact ties. Only the selected model is evaluated on the final holdout.",
   "selected_model": "logistic_regression",
   "selected_parameters": {
     "model__C": 2.0,
@@ -11,7 +11,7 @@
       2
     ]
   },
-  "holdout_protocol": "Latest 20% of deduplicated tweets by timestamp.",
+  "holdout_protocol": "Latest 20% of deduplicated tweets by timestamp. Candidate selection does not inspect this holdout.",
   "holdout_metrics": {
     "accuracy": 0.7751212751212752,
     "balanced_accuracy": 0.7270584190083692,
@@ -47,7 +47,27 @@
   "train_rows": 11541,
   "test_rows": 2886,
   "holdout_author_groups": 1633,
+  "author_generalization_slices": [
+    {
+      "author_segment": "seen_in_training",
+      "n_rows": 504,
+      "n_author_groups": 252,
+      "accuracy": 0.7817460317460317,
+      "balanced_accuracy": 0.7251235769969128,
+      "f1_macro": 0.7196916009398818,
+      "f1_weighted": 0.7831705815127086
+    },
+    {
+      "author_segment": "unseen_in_training",
+      "n_rows": 2382,
+      "n_author_groups": 1381,
+      "accuracy": 0.7737195633921075,
+      "balanced_accuracy": 0.7270516505489214,
+      "f1_macro": 0.7267509483484469,
+      "f1_weighted": 0.7731616826462078
+    }
+  ],
   "train_end": "2015-02-23T19:13:24+00:00",
   "test_start": "2015-02-23T19:13:31+00:00",
-  "privacy": "Raw identifiers are used only for validation and deduplication. Published metrics and figures contain no tweet text, usernames, locations, or tweet IDs."
+  "privacy": "Raw usernames are pseudonymized in memory for author-grouped uncertainty and seen-versus-unseen-author evaluation; they are never model features or published. Published metrics and figures contain no tweet text, usernames, locations, or tweet IDs."
 }

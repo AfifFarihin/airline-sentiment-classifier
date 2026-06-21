@@ -19,10 +19,10 @@ from sklearn.metrics import (
     confusion_matrix,
     f1_score,
 )
-from sklearn.model_selection import GridSearchCV, StratifiedKFold
+from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
 
 from airline_sentiment.data import chronological_split, load_airline_tweets
-from airline_sentiment.modeling import candidate_specs
+from airline_sentiment.modeling import CandidateSpec, candidate_specs
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -84,6 +84,33 @@ def _grouped_bootstrap_intervals(
             }
         )
     return pd.DataFrame(rows)
+
+
+def _generalization_slices(
+    train: pd.DataFrame,
+    test: pd.DataFrame,
+    predictions: np.ndarray,
+) -> pd.DataFrame:
+    """Report performance separately for repeat and previously unseen authors."""
+    seen_authors = set(train["author_group"])
+    working = test[["airline_sentiment", "author_group"]].copy()
+    working["prediction"] = predictions
+    working["author_segment"] = np.where(
+        working["author_group"].isin(seen_authors),
+        "seen_in_training",
+        "unseen_in_training",
+    )
+    rows = []
+    for segment, group in working.groupby("author_segment"):
+        rows.append(
+            {
+                "author_segment": segment,
+                "n_rows": int(len(group)),
+                "n_author_groups": int(group["author_group"].nunique()),
+                **_metrics(group["airline_sentiment"], group["prediction"].to_numpy()),
+            }
+        )
+    return pd.DataFrame(rows).sort_values("author_segment").reset_index(drop=True)
 
 
 def _save_confusion_matrix(y_true: pd.Series, y_pred: np.ndarray, path: Path) -> None:
@@ -155,6 +182,9 @@ def train_and_evaluate(
     *,
     test_fraction: float = 0.2,
     random_state: int = 42,
+    cv_splits: int = 5,
+    n_boot: int = 2000,
+    candidates: list[CandidateSpec] | None = None,
 ) -> dict[str, object]:
     """Run model selection on earlier data and evaluate once on later data."""
     output = Path(output_dir)
@@ -170,11 +200,11 @@ def train_and_evaluate(
     y_train = train["airline_sentiment"]
     x_test = test["text"]
     y_test = test["airline_sentiment"]
-    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=random_state)
+    cv = TimeSeriesSplit(n_splits=cv_splits)
 
     comparison_rows = []
     fitted_searches = {}
-    for candidate in candidate_specs(random_state):
+    for candidate in candidates or candidate_specs(random_state):
         search = GridSearchCV(
             clone(candidate.estimator),
             candidate.parameters,
@@ -189,11 +219,12 @@ def train_and_evaluate(
             return_train_score=False,
         )
         search.fit(x_train, y_train)
-        predictions = search.predict(x_test)
+        best_index = int(search.best_index_)
         row = {
             "model": candidate.name,
             "cv_f1_macro": float(search.best_score_),
-            **{f"holdout_{key}": value for key, value in _metrics(y_test, predictions).items()},
+            "cv_f1_weighted": float(search.cv_results_["mean_test_f1_weighted"][best_index]),
+            "cv_accuracy": float(search.cv_results_["mean_test_accuracy"][best_index]),
             "best_parameters": json.dumps(search.best_params_, sort_keys=True),
         }
         comparison_rows.append(row)
@@ -221,10 +252,12 @@ def train_and_evaluate(
     uncertainty = _grouped_bootstrap_intervals(
         test,
         selected_predictions,
-        n_boot=2000,
+        n_boot=n_boot,
         random_state=random_state,
     )
     uncertainty.to_csv(metrics_dir / "holdout_uncertainty.csv", index=False)
+    slices = _generalization_slices(train, test, selected_predictions)
+    slices.to_csv(metrics_dir / "generalization_slices.csv", index=False)
     _top_logistic_features(selected_model, metrics_dir / "top_features.csv")
     _save_confusion_matrix(
         y_test, selected_predictions, figures_dir / "confusion_matrix.png"
@@ -233,10 +266,16 @@ def train_and_evaluate(
     joblib.dump(selected_model, models_dir / "sentiment_pipeline.joblib")
 
     summary = {
-        "selection_rule": "Highest 5-fold training-period macro F1; model name breaks exact ties.",
+        "selection_rule": (
+            "Highest expanding-window training-period macro F1; model name breaks exact ties. "
+            "Only the selected model is evaluated on the final holdout."
+        ),
         "selected_model": selected_name,
         "selected_parameters": selected_search.best_params_,
-        "holdout_protocol": "Latest 20% of deduplicated tweets by timestamp.",
+        "holdout_protocol": (
+            "Latest 20% of deduplicated tweets by timestamp. Candidate selection does not "
+            "inspect this holdout."
+        ),
         "holdout_metrics": _metrics(y_test, selected_predictions),
         "holdout_uncertainty": {
             row["metric"]: {
@@ -249,10 +288,12 @@ def train_and_evaluate(
         "train_rows": int(len(train)),
         "test_rows": int(len(test)),
         "holdout_author_groups": int(test["author_group"].nunique()),
+        "author_generalization_slices": slices.to_dict(orient="records"),
         "train_end": train["tweet_created"].max().isoformat(),
         "test_start": test["tweet_created"].min().isoformat(),
         "privacy": (
-            "Raw identifiers are used only for validation and deduplication. "
+            "Raw usernames are pseudonymized in memory for author-grouped uncertainty and "
+            "seen-versus-unseen-author evaluation; they are never model features or published. "
             "Published metrics and figures contain no tweet text, usernames, locations, or tweet IDs."
         ),
     }

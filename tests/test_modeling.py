@@ -1,4 +1,4 @@
-from sklearn.model_selection import StratifiedKFold, cross_val_score
+from sklearn.model_selection import TimeSeriesSplit, cross_val_score
 
 from airline_sentiment.modeling import candidate_specs
 
@@ -38,7 +38,7 @@ def test_logistic_candidate_runs_cross_validation() -> None:
         "positive",
     ] * 3
     candidate = next(item for item in candidate_specs() if item.name == "logistic_regression")
-    cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
+    cv = TimeSeriesSplit(n_splits=3)
 
     scores = cross_val_score(candidate.estimator, texts, labels, cv=cv, scoring="f1_macro")
 

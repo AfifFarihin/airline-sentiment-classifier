@@ -8,6 +8,8 @@ compares a majority baseline, Complement Naive Bayes, and class-balanced
 logistic regression using TF-IDF features, then evaluates the selected model on
 strictly later messages.
 
+![Interactive prediction demo](demo/assets/demo.png)
+
 ![Normalized confusion matrix](outputs/figures/confusion_matrix.png)
 
 ## Why This Version Is Different
@@ -17,11 +19,13 @@ F1. This portfolio version makes the evaluation harder and more useful:
 
 - Removes duplicate tweet IDs and duplicate text before splitting.
 - Reserves the latest 20% of rows as a chronological holdout.
-- Fits TF-IDF inside every cross-validation fold.
+- Tunes TF-IDF and models with expanding-window cross-validation.
 - Selects models by macro F1 so minority classes matter.
 - Compares against an explicit majority-class baseline.
+- Evaluates only the CV-selected winner on the final holdout.
 - Bootstraps uncertainty by author rather than treating every tweet as
   independent.
+- Reports performance separately for previously seen and unseen authors.
 - Publishes aggregate artifacts only; raw tweets and direct identifiers stay
   out of Git.
 
@@ -30,15 +34,19 @@ F1. This portfolio version makes the evaluation harder and more useful:
 The selected model is class-balanced logistic regression with word unigram and
 bigram TF-IDF features.
 
-| Model | Training CV macro F1 | Later holdout macro F1 | Holdout accuracy |
+| Model | Expanding-window CV macro F1 | CV weighted F1 | CV accuracy |
 |---|---:|---:|---:|
-| Logistic regression | 0.749 | **0.726** | **0.775** |
-| Complement Naive Bayes | 0.733 | 0.701 | 0.759 |
-| Majority baseline | 0.260 | 0.249 | 0.595 |
+| Logistic regression | **0.717** | **0.786** | **0.785** |
+| Complement Naive Bayes | 0.705 | 0.777 | 0.780 |
+| Majority baseline | 0.261 | 0.512 | 0.648 |
 
-The selected model's author-grouped 95% interval is **0.707-0.744** for macro
-F1 and **0.759-0.791** for accuracy. Per-class F1 is 0.854 for negative, 0.645
-for neutral, and 0.679 for positive sentiment. Neutral language remains the
+On the single-use later holdout, the selected model reaches **0.726 macro F1**
+and **0.775 accuracy**. Its author-grouped 95% intervals are **0.707-0.744**
+and **0.759-0.791** respectively. Per-class F1 is 0.854 for negative, 0.645 for
+neutral, and 0.679 for positive sentiment.
+
+Macro F1 is 0.720 for 504 messages from authors present in training and 0.727
+for 2,382 messages from previously unseen authors. Neutral language remains the
 largest weakness.
 
 ![Class distribution over time](outputs/figures/class_distribution.png)
@@ -50,7 +58,7 @@ flowchart LR
     A["Kaggle dataset"] --> B["Validate and deduplicate"]
     B --> C["Earlier 80%"]
     B --> D["Later 20% holdout"]
-    C --> E["5-fold model selection by macro F1"]
+    C --> E["5-fold expanding-window selection"]
     E --> F["Selected TF-IDF + logistic pipeline"]
     F --> D
     D --> G["Metrics, grouped uncertainty, and error matrix"]
@@ -67,9 +75,10 @@ Requirements: Python 3.11 and [uv](https://docs.astral.sh/uv/).
 ```powershell
 git clone https://github.com/AfifFarihin/airline-sentiment-classifier.git
 cd airline-sentiment-classifier
-uv sync --extra notebooks --group dev
+uv sync --extra demo --extra notebooks --group dev
 uv run python scripts/download_data.py
 uv run airline-sentiment
+uv run streamlit run demo/app.py
 ```
 
 The downloader retrieves the upstream Kaggle archive, extracts only
@@ -79,6 +88,7 @@ The downloader retrieves the upstream Kaggle archive, extracts only
 
 ```text
 src/airline_sentiment/   Reusable data, modelling, training, and CLI code
+demo/                    Offline Streamlit text-prediction interface
 scripts/                 Verified data download and notebook generation
 notebooks/               Portfolio analysis built from aggregate artifacts
 outputs/metrics/         Model comparison, class report, uncertainty, features
@@ -89,7 +99,7 @@ tests/                   Data contracts, leakage guards, and artifact checks
 ## Checks
 
 ```powershell
-uv run ruff check src scripts tests
+uv run ruff check demo src scripts tests
 uv run pytest -q
 uv run pip-audit --skip-editable
 ```
@@ -99,6 +109,8 @@ uv run pip-audit --skip-editable
 The raw Twitter US Airline Sentiment dataset is not committed. It is available
 from Kaggle under CC BY-NC-SA 4.0. The source includes public tweet text,
 usernames, and locations; this repository publishes none of those fields.
+Usernames are pseudonymized in memory only for grouped uncertainty and
+seen-versus-unseen-author evaluation; they are never model features.
 
 This is a historical portfolio benchmark, not a production customer-monitoring
 system. See [DATA_LICENSES.md](DATA_LICENSES.md) and

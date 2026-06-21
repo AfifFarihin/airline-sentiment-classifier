@@ -19,10 +19,14 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install dependencies
-        run: uv sync --extra notebooks --group dev
+        run: uv sync --extra demo --extra notebooks --group dev
       - name: Lint
-        run: uv run ruff check src scripts tests
-      - name: Test
+        run: uv run ruff check demo src scripts tests
+      - name: Download verified dataset
+        run: uv run python scripts/download_data.py
+      - name: Regenerate complete benchmark
+        run: uv run airline-sentiment
+      - name: Test code and regenerated artifacts
         run: uv run pytest -q
       - name: Execute privacy-safe notebook
         run: uv run python scripts/run_notebook.py

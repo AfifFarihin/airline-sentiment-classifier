@@ -20,14 +20,20 @@ not used as model features.
 ## Evaluation
 
 The latest 20% of deduplicated rows by timestamp are reserved as a final
-holdout. Model selection uses five-fold stratified cross-validation only on the
-earlier training period. Macro F1 is the primary selection metric because the
-negative class is substantially larger than the neutral and positive classes.
+holdout. Model selection uses five-fold cross-validation only on the
+earlier training period. The folds use expanding windows rather than random
+shuffling. Macro F1 is the primary selection metric because the negative class
+is substantially larger than the neutral and positive classes. Only the
+selected model is evaluated on the final holdout.
 
 The selected class-balanced logistic regression achieved 0.726 macro F1
 (author-grouped 95% interval 0.707-0.744) and 0.775 accuracy (0.759-0.791) on
 2,886 later tweets. Negative, neutral, and positive class F1 scores were 0.854,
 0.645, and 0.679 respectively.
+
+The holdout contains 504 messages from authors also observed in training and
+2,382 from previously unseen authors. Macro F1 was 0.720 and 0.727 respectively,
+suggesting that the headline result is not dependent on repeat authors.
 
 ## Limitations
 
