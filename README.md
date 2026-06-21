@@ -2,6 +2,7 @@
 
 [![Python 3.11](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Code License: MIT](https://img.shields.io/badge/Code%20License-MIT-blue.svg)](LICENSE)
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/AfifFarihin/airline-sentiment-classifier/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/AfifFarihin/airline-sentiment-classifier/tree/main)
 
 A leakage-aware multiclass NLP benchmark for U.S. airline tweets. The project
 compares a majority baseline, Complement Naive Bayes, and class-balanced

@@ -1,0 +1,48 @@
+version: 2.1
+
+jobs:
+  quality-gate:
+    docker:
+      - image: cimg/python:3.11
+    resource_class: medium
+    environment:
+      UV_LINK_MODE: copy
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - uv-v1-{{ checksum "uv.lock" }}
+            - uv-v1-
+      - run:
+          name: Install uv
+          command: pip install --disable-pip-version-check uv==0.11.23
+      - run:
+          name: Install locked dependencies
+          command: uv sync --frozen --extra demo --extra notebooks --group dev
+      - save_cache:
+          key: uv-v1-{{ checksum "uv.lock" }}
+          paths:
+            - ~/.cache/uv
+      - run:
+          name: Lint
+          command: uv run ruff check demo src scripts tests
+      - run:
+          name: Download verified dataset
+          command: uv run python scripts/download_data.py
+      - run:
+          name: Regenerate complete benchmark
+          command: uv run airline-sentiment
+      - run:
+          name: Test code and regenerated artifacts
+          command: uv run pytest -q
+      - run:
+          name: Execute privacy-safe notebook
+          command: uv run python scripts/run_notebook.py
+      - run:
+          name: Audit dependencies
+          command: uv run pip-audit --skip-editable
+
+workflows:
+  verify:
+    jobs:
+      - quality-gate
